@@ -1,0 +1,37 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: docflow-postgres
+    environment:
+      POSTGRES_DB: docflow
+      POSTGRES_USER: docflow
+      POSTGRES_PASSWORD: docflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docflow -d docflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: docflow-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/docflow
+      SPRING_DATASOURCE_USERNAME: docflow
+      SPRING_DATASOURCE_PASSWORD: docflow
+      DOCFLOW_JWT_SECRET: change-me-in-production-must-be-at-least-256-bits-long
+      DOCFLOW_JWT_EXPIRATION_MS: 86400000
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:
