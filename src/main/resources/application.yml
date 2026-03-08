@@ -20,6 +20,8 @@ spring:
 
 docflow:
   jwt:
+    # DOCFLOW_JWT_SECRET is required — no default to avoid accidental use of a weak key in production.
+    # For local development without Docker, set: export DOCFLOW_JWT_SECRET=<at-least-32-random-chars>
     secret: ${DOCFLOW_JWT_SECRET}
     expiration-ms: ${DOCFLOW_JWT_EXPIRATION_MS:86400000}
 

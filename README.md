@@ -59,6 +59,7 @@ The API will be available at `http://localhost:8080`.
 createdb docflow
 
 # 2. Configure credentials (or export env vars)
+# DOCFLOW_JWT_SECRET is required — generate a random 32+ character string for local use
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/docflow
 export SPRING_DATASOURCE_USERNAME=docflow
 export SPRING_DATASOURCE_PASSWORD=docflow
