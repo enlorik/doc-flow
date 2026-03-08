@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -31,10 +32,11 @@ public class JobService {
         Project project = projectService.loadAndVerifyOwnership(ownerEmail, projectId);
 
         if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
-            jobRepository.findByProjectIdAndIdempotencyKey(projectId, request.idempotencyKey())
-                    .ifPresent(existing -> {
-                        throw new ConflictException("Job with this idempotency key already exists");
-                    });
+            Optional<Job> existing = jobRepository.findByProjectIdAndIdempotencyKey(
+                    projectId, request.idempotencyKey());
+            if (existing.isPresent()) {
+                return JobResponse.from(existing.get());
+            }
         }
 
         Job job = new Job(project, request.type(), request.inputJson(),
@@ -69,7 +71,7 @@ public class JobService {
         if (!job.getProject().getId().equals(projectId)) {
             throw new NotFoundException("Job not found in this project");
         }
-        if (job.getStatus() == JobStatus.SUCCEEDED || job.getStatus() == JobStatus.DEAD_LETTER) {
+        if (job.getStatus() != JobStatus.QUEUED && job.getStatus() != JobStatus.RUNNING) {
             throw new ConflictException("Cannot cancel a job in status: " + job.getStatus());
         }
         job.setStatus(JobStatus.CANCELLED);

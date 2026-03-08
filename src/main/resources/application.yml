@@ -20,7 +20,7 @@ spring:
 
 docflow:
   jwt:
-    secret: ${DOCFLOW_JWT_SECRET:dev-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm}
+    secret: ${DOCFLOW_JWT_SECRET}
     expiration-ms: ${DOCFLOW_JWT_EXPIRATION_MS:86400000}
 
 server:
