@@ -46,10 +46,7 @@ src/main/java/com/docflow/
 git clone https://github.com/enlorik/doc-flow.git
 cd doc-flow
 
-# 2. Build the application JAR
-./mvnw clean package -DskipTests
-
-# 3. Start all services (PostgreSQL + app)
+# 2. Start all services (PostgreSQL + app) — the image is built automatically
 docker-compose up --build
 ```
 
@@ -62,13 +59,14 @@ The API will be available at `http://localhost:8080`.
 createdb docflow
 
 # 2. Configure credentials (or export env vars)
+# DOCFLOW_JWT_SECRET is required — generate a random 32+ character string for local use
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/docflow
 export SPRING_DATASOURCE_USERNAME=docflow
 export SPRING_DATASOURCE_PASSWORD=docflow
 export DOCFLOW_JWT_SECRET=your-256-bit-secret-key-here
 
 # 3. Run
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 ## API Overview
@@ -158,7 +156,7 @@ Key environment variables:
 ## Running Tests
 
 ```bash
-./mvnw test
+mvn test
 ```
 
 Tests use an H2 in-memory database (Flyway disabled for tests).

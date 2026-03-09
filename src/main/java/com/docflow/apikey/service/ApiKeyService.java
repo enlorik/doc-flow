@@ -57,6 +57,9 @@ public class ApiKeyService {
         projectService.loadAndVerifyOwnership(ownerEmail, projectId);
         ApiKey key = apiKeyRepository.findById(keyId)
                 .orElseThrow(() -> new NotFoundException("API key not found"));
+        if (!key.getProject().getId().equals(projectId)) {
+            throw new NotFoundException("API key not found in this project");
+        }
         key.setRevoked(true);
     }
 
