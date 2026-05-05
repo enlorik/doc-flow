@@ -12,9 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -86,6 +88,59 @@ class JobServiceTest {
 
         assertThat(response.id()).isEqualTo(savedJob.getId());
         verify(jobRepository).save(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "   ", "\t", "\n"})
+    void submit_treatsBlankIdempotencyKeyAsNull(String blankKey) {
+        UUID projectId = UUID.randomUUID();
+        String ownerEmail = "owner@example.com";
+
+        Project project = new Project();
+        project.setId(projectId);
+
+        CreateJobRequest request = new CreateJobRequest("PDF_CONVERT", "{}", blankKey, 3);
+
+        Job savedJob = new Job(project, "PDF_CONVERT", "{}", null, 3);
+        savedJob.setId(UUID.randomUUID());
+        savedJob.setStatus(JobStatus.QUEUED);
+
+        when(projectService.loadAndVerifyOwnership(ownerEmail, projectId)).thenReturn(project);
+        when(jobRepository.save(any())).thenReturn(savedJob);
+
+        JobResponse response = jobService.submit(ownerEmail, projectId, request);
+
+        assertThat(response.idempotencyKey()).isNull();
+        verify(jobRepository, never()).findByProjectIdAndIdempotencyKey(any(), any());
+        verify(jobRepository).save(any());
+    }
+
+    @Test
+    void submit_returnsExistingJobOnConcurrentDuplicateInsert() {
+        UUID projectId = UUID.randomUUID();
+        String ownerEmail = "owner@example.com";
+        String idempotencyKey = "idem-key-concurrent";
+
+        Project project = new Project();
+        project.setId(projectId);
+
+        Job existingJob = new Job(project, "PDF_CONVERT", "{}", idempotencyKey, 3);
+        existingJob.setId(UUID.randomUUID());
+        existingJob.setStatus(JobStatus.QUEUED);
+
+        CreateJobRequest request = new CreateJobRequest("PDF_CONVERT", "{}", idempotencyKey, 3);
+
+        when(projectService.loadAndVerifyOwnership(ownerEmail, projectId)).thenReturn(project);
+        // Pre-check finds nothing (race window), but save throws due to unique constraint violation
+        when(jobRepository.findByProjectIdAndIdempotencyKey(projectId, idempotencyKey))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(existingJob));
+        when(jobRepository.save(any())).thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        JobResponse response = jobService.submit(ownerEmail, projectId, request);
+
+        assertThat(response.id()).isEqualTo(existingJob.getId());
+        assertThat(response.idempotencyKey()).isEqualTo(idempotencyKey);
     }
 
     // ── Cancellation ─────────────────────────────────────────────────────────

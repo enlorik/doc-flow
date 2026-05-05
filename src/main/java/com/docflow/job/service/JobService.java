@@ -9,6 +9,7 @@ import com.docflow.job.entity.JobStatus;
 import com.docflow.job.repository.JobRepository;
 import com.docflow.project.entity.Project;
 import com.docflow.project.service.ProjectService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,18 +32,31 @@ public class JobService {
     public JobResponse submit(String ownerEmail, UUID projectId, CreateJobRequest request) {
         Project project = projectService.loadAndVerifyOwnership(ownerEmail, projectId);
 
-        if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
-            Optional<Job> existing = jobRepository.findByProjectIdAndIdempotencyKey(
-                    projectId, request.idempotencyKey());
+        String key = normalizeKey(request.idempotencyKey());
+
+        if (key != null) {
+            Optional<Job> existing = jobRepository.findByProjectIdAndIdempotencyKey(projectId, key);
             if (existing.isPresent()) {
                 return JobResponse.from(existing.get());
             }
         }
 
-        Job job = new Job(project, request.type(), request.inputJson(),
-                request.idempotencyKey(), request.maxAttempts());
+        Job job = new Job(project, request.type(), request.inputJson(), key, request.maxAttempts());
         job.setStatus(JobStatus.QUEUED);
-        return JobResponse.from(jobRepository.save(job));
+        if (key == null) {
+            return JobResponse.from(jobRepository.save(job));
+        }
+        try {
+            return JobResponse.from(jobRepository.save(job));
+        } catch (DataIntegrityViolationException ex) {
+            return jobRepository.findByProjectIdAndIdempotencyKey(projectId, key)
+                    .map(JobResponse::from)
+                    .orElseThrow(() -> ex);
+        }
+    }
+
+    private static String normalizeKey(String key) {
+        return (key == null || key.isBlank()) ? null : key;
     }
 
     @Transactional(readOnly = true)
