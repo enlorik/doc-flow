@@ -160,3 +160,15 @@ mvn test
 ```
 
 Tests use an H2 in-memory database (Flyway disabled for tests).
+
+## Design notes
+
+**Why JWT instead of sessions** — DocFlow is a machine-facing REST API. Clients attach a Bearer token explicitly; the server validates the signature and moves on with no session store and no sticky routing requirement. The tradeoff is revocability: a stolen token is valid until expiry, so the mitigation is short TTLs. The contrast is user-management-api, which uses sessions because it's a browser-facing app where instant revocation matters more than horizontal scale.
+
+**Why one method owns all tenant access** — Every operation touching a project, an API key, or a job calls `loadAndVerifyOwnership` at the top. The alternative — distributed ownership checks scattered across services — means one forgotten check becomes an IDOR vulnerability. One method means it's tested once and impossible to skip.
+
+**Why the DB constraint is the real idempotency guarantee** — There's a fast-path check (look up the idempotency key before inserting), but two concurrent requests can both pass that check before either commits. The `UNIQUE(project_id, idempotency_key)` constraint is what actually serialises them: one insert wins, the other catches `DataIntegrityViolationException` and reads the winner's row. The database is the arbiter; the application just handles losing gracefully.
+
+**Why CSRF is explicitly disabled** — CSRF exploits browsers automatically attaching cookies to cross-origin requests. Bearer tokens require explicit attachment by client code, so the attack surface doesn't exist. Disabling it here is correct for the same reason enabling it in user-management-api (which uses session cookies) is correct. The reasoning should be explicit, not accidental.
+
+**Why UUID primary keys** — Sequential IDs expose enumeration: a user could walk `project/1`, `project/2`, and so on. UUIDs eliminate that, are safe to expose in URLs, and merge cleanly across environments. The cost is larger indexes and no natural ordering, so `created_at` handles anything that needs to be sorted.
