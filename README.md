@@ -160,3 +160,15 @@ mvn test
 ```
 
 Tests use an H2 in-memory database (Flyway disabled for tests).
+
+## Design notes
+
+**Why JWT instead of sessions** — DocFlow is a machine-facing REST API. Clients attach a Bearer token explicitly; the server validates the signature and moves on with no session store and no sticky routing requirement. The tradeoff is revocability: a stolen token is valid until expiry, so the mitigation is short TTLs. Sessions would give instant revocation but at the cost of shared session state and sticky routing — the right call depends on whether the client is a browser or a machine.
+
+**Why tenant access requires two checks** — Every operation first calls `loadAndVerifyOwnership` to confirm the caller owns the project in the URL. For jobs and API keys, a second check then confirms the resource actually belongs to that project (e.g. `job.project.id == projectId`). The first check prevents cross-tenant project access; the second prevents IDOR within a tenant's own projects — both are required, and omitting either reopens a vulnerability.
+
+**Why the DB constraint is the real idempotency guarantee** — There's a fast-path check (look up the idempotency key before inserting), but two concurrent requests can both pass that check before either commits. The `UNIQUE(project_id, idempotency_key)` constraint is what actually serialises them at the database level. The intended recovery: one insert wins, the other catches `DataIntegrityViolationException` and reads the winner's row — though the precise boundary depends on flush timing; `save()` rather than `saveAndFlush()` means the exception may surface during commit rather than inside the try/catch, so the read-back path should be verified under the actual transaction configuration.
+
+**Why CSRF is explicitly disabled** — CSRF exploits browsers automatically attaching cookies to cross-origin requests. Bearer tokens require explicit attachment by client code, so the attack surface doesn't exist. Disabling it here is correct; a session-cookie-based app would need it enabled. The reasoning should be explicit, not accidental.
+
+**Why UUID primary keys** — Sequential IDs expose enumeration: a user could walk `project/1`, `project/2`, and so on. UUIDs eliminate that, are safe to expose in URLs, and merge cleanly across environments. The cost is larger indexes and no natural ordering, so `created_at` handles anything that needs to be sorted.
