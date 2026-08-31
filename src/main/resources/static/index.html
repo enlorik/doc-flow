@@ -3,246 +3,227 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="DocFlow API for asynchronous document-processing workflows.">
+  <meta name="description" content="Create, submit, and monitor document-processing jobs with DocFlow.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>">
-  <title>DocFlow API</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #080b12;
-      --panel: rgba(18, 24, 38, .82);
-      --line: rgba(148, 163, 184, .16);
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent: #60a5fa;
-      --green: #34d399;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      min-height: 100vh;
-      margin: 0;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at 15% 20%, rgba(37, 99, 235, .22), transparent 32rem),
-        radial-gradient(circle at 85% 80%, rgba(16, 185, 129, .12), transparent 28rem),
-        var(--bg);
-    }
-
-    main {
-      width: min(1080px, calc(100% - 40px));
-      margin: 0 auto;
-      padding: 72px 0;
-    }
-
-    nav, .status, .endpoint, footer {
-      display: flex;
-      align-items: center;
-    }
-
-    nav {
-      justify-content: space-between;
-      margin-bottom: 96px;
-    }
-
-    .brand {
-      font-weight: 750;
-      letter-spacing: -.03em;
-      font-size: 1.2rem;
-    }
-
-    .status {
-      gap: 9px;
-      padding: 8px 12px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      color: #cbd5e1;
-      background: rgba(15, 23, 42, .55);
-      font-size: .86rem;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 16px var(--green);
-    }
-
-    .eyebrow {
-      margin: 0 0 18px;
-      color: var(--accent);
-      font-weight: 700;
-      letter-spacing: .13em;
-      text-transform: uppercase;
-      font-size: .76rem;
-    }
-
-    h1 {
-      max-width: 800px;
-      margin: 0;
-      font-size: clamp(3.2rem, 8vw, 6.8rem);
-      line-height: .94;
-      letter-spacing: -.065em;
-    }
-
-    .lead {
-      max-width: 680px;
-      margin: 30px 0 58px;
-      color: #bdc7d7;
-      font-size: clamp(1.05rem, 2vw, 1.3rem);
-      line-height: 1.7;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 18px;
-    }
-
-    .card {
-      padding: 28px;
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      background: var(--panel);
-      backdrop-filter: blur(16px);
-      box-shadow: 0 18px 60px rgba(0, 0, 0, .18);
-    }
-
-    .card h2 {
-      margin: 0 0 10px;
-      font-size: 1rem;
-      letter-spacing: -.01em;
-    }
-
-    .card p {
-      margin: 0 0 23px;
-      color: var(--muted);
-      line-height: 1.55;
-      font-size: .93rem;
-    }
-
-    .endpoints {
-      display: grid;
-      gap: 10px;
-    }
-
-    .endpoint {
-      justify-content: space-between;
-      gap: 14px;
-      padding: 12px 14px;
-      border-radius: 11px;
-      background: rgba(8, 11, 18, .72);
-      color: #cbd5e1;
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-      font-size: .78rem;
-    }
-
-    .method {
-      color: var(--green);
-      font-weight: 800;
-    }
-
-    .method.post { color: #fbbf24; }
-
-    .features {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-    }
-
-    .feature {
-      min-height: 82px;
-      padding: 16px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: rgba(8, 11, 18, .45);
-    }
-
-    .feature strong {
-      display: block;
-      margin-bottom: 6px;
-      font-size: .88rem;
-    }
-
-    .feature span {
-      color: var(--muted);
-      font-size: .78rem;
-      line-height: 1.45;
-    }
-
-    footer {
-      justify-content: space-between;
-      gap: 24px;
-      margin-top: 28px;
-      padding: 20px 4px;
-      color: #64748b;
-      font-size: .8rem;
-    }
-
-    footer a {
-      color: #94a3b8;
-      text-decoration: none;
-    }
-
-    footer a:hover { color: var(--text); }
-
-    @media (max-width: 720px) {
-      main { padding: 32px 0; }
-      nav { margin-bottom: 64px; }
-      .grid { grid-template-columns: 1fr; }
-      .features { grid-template-columns: 1fr; }
-      footer { align-items: flex-start; flex-direction: column; }
-    }
-  </style>
+  <link rel="stylesheet" href="/app.css">
+  <title>DocFlow</title>
 </head>
 <body>
-  <main>
-    <nav>
-      <div class="brand">DocFlow</div>
-      <div class="status"><span class="dot"></span> API online</div>
-    </nav>
+  <div class="toast-region" id="toast-region" aria-live="polite"></div>
 
-    <section>
-      <p class="eyebrow">Document processing infrastructure</p>
-      <h1>Documents in.<br>Workflows out.</h1>
-      <p class="lead">
-        DocFlow is a secure REST API for organizing projects, issuing API keys,
-        and managing asynchronous document-processing jobs.
-      </p>
-    </section>
-
-    <section class="grid">
-      <article class="card">
-        <h2>API entry points</h2>
-        <p>Authenticate first, then use the returned bearer token for protected resources.</p>
-        <div class="endpoints">
-          <div class="endpoint"><span><span class="method post">POST</span>&nbsp; /api/auth/register</span><span>Public</span></div>
-          <div class="endpoint"><span><span class="method post">POST</span>&nbsp; /api/auth/login</span><span>Public</span></div>
-          <div class="endpoint"><span><span class="method">GET</span>&nbsp;&nbsp; /api/projects</span><span>JWT</span></div>
-          <div class="endpoint"><span><span class="method">GET</span>&nbsp;&nbsp; /api/projects/{id}/jobs</span><span>JWT</span></div>
+  <section class="auth-shell" id="auth-view">
+    <div class="auth-brand">
+      <a class="brand" href="/" aria-label="DocFlow home">
+        <span class="brand-mark">D</span>
+        <span>DocFlow</span>
+      </a>
+      <div class="auth-copy">
+        <p class="eyebrow">Document operations, without the overhead</p>
+        <h1>Turn raw documents into useful data.</h1>
+        <p>
+          Create a workspace, submit text documents, and watch DocFlow process
+          them into practical metrics—all through the real production API.
+        </p>
+      </div>
+      <div class="process-preview" aria-hidden="true">
+        <div class="process-node">
+          <span class="node-icon">01</span>
+          <div><strong>Submit</strong><small>Your source text</small></div>
         </div>
-      </article>
-
-      <article class="card">
-        <h2>Built for production workflows</h2>
-        <p>Core infrastructure is connected and ready for API clients.</p>
-        <div class="features">
-          <div class="feature"><strong>JWT security</strong><span>Stateless authentication and protected tenant resources.</span></div>
-          <div class="feature"><strong>PostgreSQL</strong><span>Persistent project, key, job, and attempt records.</span></div>
-          <div class="feature"><strong>Job lifecycle</strong><span>Queued, running, retry, success, and failure states.</span></div>
-          <div class="feature"><strong>Idempotency</strong><span>Duplicate job submissions are safely controlled.</span></div>
+        <span class="process-line"></span>
+        <div class="process-node">
+          <span class="node-icon processing">02</span>
+          <div><strong>Process</strong><small>Railway worker</small></div>
         </div>
-      </article>
-    </section>
+        <span class="process-line"></span>
+        <div class="process-node">
+          <span class="node-icon complete">03</span>
+          <div><strong>Review</strong><small>Stored results</small></div>
+        </div>
+      </div>
+    </div>
 
-    <footer>
-      <span>DocFlow API · Railway production</span>
-      <a href="https://github.com/enlorik/doc-flow">View source on GitHub →</a>
-    </footer>
-  </main>
+    <div class="auth-panel-wrap">
+      <div class="live-pill"><span></span> Production API online</div>
+      <div class="auth-panel">
+        <div class="auth-tabs" role="tablist" aria-label="Account access">
+          <button class="auth-tab active" id="login-tab" type="button" role="tab" aria-selected="true">Log in</button>
+          <button class="auth-tab" id="register-tab" type="button" role="tab" aria-selected="false">Create account</button>
+        </div>
+        <div class="auth-heading">
+          <h2 id="auth-title">Welcome back</h2>
+          <p id="auth-subtitle">Use your DocFlow account to continue.</p>
+        </div>
+        <form id="auth-form">
+          <label>
+            <span>Email address</span>
+            <input id="auth-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="auth-password" name="password" type="password" autocomplete="current-password" placeholder="At least 8 characters" minlength="8" required>
+          </label>
+          <button class="button primary full" id="auth-submit" type="submit">
+            <span>Log in</span>
+            <span class="button-arrow">→</span>
+          </button>
+        </form>
+        <p class="auth-switch" id="auth-switch-copy">
+          New to DocFlow? <button id="auth-switch" type="button">Create an account</button>
+        </p>
+      </div>
+      <p class="security-note">Your session stays in this browser tab and is sent only to this DocFlow deployment.</p>
+    </div>
+  </section>
+
+  <section class="app-shell" id="app-view" hidden>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="DocFlow dashboard">
+        <span class="brand-mark">D</span>
+        <span>DocFlow</span>
+      </a>
+      <div class="topbar-actions">
+        <span class="api-status"><span></span> API online</span>
+        <span class="user-email" id="user-email"></span>
+        <button class="button ghost compact" id="logout-button" type="button">Log out</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <div class="sidebar-heading">
+          <div>
+            <span class="section-kicker">Workspace</span>
+            <h2>Projects</h2>
+          </div>
+          <button class="icon-button" id="new-project-button" type="button" aria-label="Create project">+</button>
+        </div>
+        <nav class="project-list" id="project-list" aria-label="Projects"></nav>
+        <button class="button secondary full sidebar-create" id="sidebar-new-project-button" type="button">+ New project</button>
+      </aside>
+
+      <main class="main-content">
+        <section class="empty-state" id="empty-state" hidden>
+          <span class="empty-number">01</span>
+          <h1>Create your first project</h1>
+          <p>Projects keep document jobs and API credentials organized. Start one, then submit a document for analysis.</p>
+          <button class="button primary" id="empty-new-project-button" type="button">Create project</button>
+        </section>
+
+        <section id="project-view" hidden>
+          <div class="project-header">
+            <div>
+              <span class="section-kicker">Active project</span>
+              <h1 id="project-name"></h1>
+              <p id="project-description"></p>
+            </div>
+            <button class="button secondary" id="refresh-button" type="button">Refresh data</button>
+          </div>
+
+          <div class="view-tabs" role="tablist" aria-label="Project sections">
+            <button class="view-tab active" id="jobs-tab" type="button" role="tab" aria-selected="true">Document jobs</button>
+            <button class="view-tab" id="keys-tab" type="button" role="tab" aria-selected="false">API keys</button>
+          </div>
+
+          <section id="jobs-panel">
+            <div class="stats-grid">
+              <article class="stat"><span>Total jobs</span><strong id="stat-total">0</strong></article>
+              <article class="stat"><span>Processing</span><strong id="stat-active">0</strong></article>
+              <article class="stat"><span>Succeeded</span><strong id="stat-succeeded">0</strong></article>
+              <article class="stat"><span>Failed</span><strong id="stat-failed">0</strong></article>
+            </div>
+
+            <div class="content-grid">
+              <article class="panel submit-panel">
+                <div class="panel-heading">
+                  <div><span class="section-kicker">New job</span><h2>Analyze a text document</h2></div>
+                  <span class="job-type">TEXT_ANALYZE</span>
+                </div>
+                <p class="panel-copy">Paste any document below. The worker will count words, characters, lines, sentences, paragraphs, and estimated reading time.</p>
+                <form id="job-form">
+                  <label>
+                    <span>Document text</span>
+                    <textarea id="document-text" rows="12" placeholder="Paste an article, brief, report, or any other text…" required></textarea>
+                  </label>
+                  <div class="form-footer">
+                    <span id="text-counter">0 characters</span>
+                    <button class="button primary" id="submit-job-button" type="submit">Analyze document</button>
+                  </div>
+                </form>
+              </article>
+
+              <article class="panel jobs-panel">
+                <div class="panel-heading">
+                  <div><span class="section-kicker">Activity</span><h2>Recent jobs</h2></div>
+                  <span class="auto-refresh"><span></span> Live</span>
+                </div>
+                <div class="job-list" id="job-list"></div>
+              </article>
+            </div>
+          </section>
+
+          <section id="keys-panel" hidden>
+            <article class="panel keys-panel">
+              <div class="panel-heading">
+                <div><span class="section-kicker">Programmatic access</span><h2>API keys</h2></div>
+                <button class="button primary" id="new-key-button" type="button">Generate key</button>
+              </div>
+              <p class="panel-copy">Create and revoke project credentials. A full key is shown only once when it is generated.</p>
+              <div class="key-list" id="key-list"></div>
+            </article>
+          </section>
+        </section>
+      </main>
+    </div>
+  </section>
+
+  <dialog id="project-dialog">
+    <form method="dialog" class="dialog-card" id="project-form">
+      <div class="dialog-heading">
+        <div><span class="section-kicker">Workspace</span><h2>Create a project</h2></div>
+        <button class="dialog-close" value="cancel" type="button" data-close-dialog="project-dialog" aria-label="Close">×</button>
+      </div>
+      <label>
+        <span>Project name</span>
+        <input id="project-name-input" type="text" maxlength="255" placeholder="Research documents" required>
+      </label>
+      <label>
+        <span>Description <small>Optional</small></span>
+        <textarea id="project-description-input" rows="3" placeholder="What will this project process?"></textarea>
+      </label>
+      <div class="dialog-actions">
+        <button class="button ghost" value="cancel" type="button" data-close-dialog="project-dialog">Cancel</button>
+        <button class="button primary" id="create-project-submit" type="submit">Create project</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="key-dialog">
+    <form method="dialog" class="dialog-card" id="key-form">
+      <div class="dialog-heading">
+        <div><span class="section-kicker">Credentials</span><h2 id="key-dialog-title">Generate an API key</h2></div>
+        <button class="dialog-close" value="cancel" type="button" data-close-dialog="key-dialog" aria-label="Close">×</button>
+      </div>
+      <div id="key-create-fields">
+        <label>
+          <span>Key name</span>
+          <input id="key-name-input" type="text" maxlength="255" placeholder="Local development" required>
+        </label>
+        <p class="dialog-help">Name the key after the application or environment that will use it.</p>
+      </div>
+      <div class="secret-result" id="secret-result" hidden>
+        <span>Copy this key now—it will not be shown again.</span>
+        <code id="raw-key"></code>
+        <button class="button secondary full" id="copy-key-button" type="button">Copy API key</button>
+      </div>
+      <div class="dialog-actions" id="key-dialog-actions">
+        <button class="button ghost" value="cancel" type="button" data-close-dialog="key-dialog">Cancel</button>
+        <button class="button primary" id="create-key-submit" type="submit">Generate key</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/app.js" defer></script>
 </body>
 </html>
 
