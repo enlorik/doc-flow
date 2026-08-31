@@ -128,10 +128,27 @@
           <section id="jobs-panel">
             <div class="stats-grid">
               <article class="stat"><span>Total jobs</span><strong id="stat-total">0</strong></article>
-              <article class="stat"><span>Processing</span><strong id="stat-active">0</strong></article>
+              <article class="stat active-stat"><span>Moving now</span><strong id="stat-active">0</strong></article>
               <article class="stat"><span>Succeeded</span><strong id="stat-succeeded">0</strong></article>
               <article class="stat"><span>Failed</span><strong id="stat-failed">0</strong></article>
             </div>
+
+            <section class="flow-map" aria-labelledby="flow-map-title">
+              <div class="flow-map-copy">
+                <span class="section-kicker">Behind the flow</span>
+                <h2 id="flow-map-title">What the backend is doing</h2>
+                <p>Every document becomes a durable job. The dashboard watches the database while the worker advances it one stage at a time.</p>
+              </div>
+              <div class="flow-steps" aria-label="DocFlow processing stages">
+                <div class="flow-step"><span>01</span><div><strong>Submit</strong><small>Browser sends text</small></div></div>
+                <i aria-hidden="true">→</i>
+                <div class="flow-step"><span>02</span><div><strong>Store</strong><small>Postgres queues job</small></div></div>
+                <i aria-hidden="true">→</i>
+                <div class="flow-step"><span>03</span><div><strong>Process</strong><small>Worker analyzes it</small></div></div>
+                <i aria-hidden="true">→</i>
+                <div class="flow-step"><span>04</span><div><strong>Return</strong><small>Results are saved</small></div></div>
+              </div>
+            </section>
 
             <div class="content-grid">
               <article class="panel submit-panel">
@@ -152,12 +169,29 @@
                 </form>
               </article>
 
-              <article class="panel jobs-panel">
+              <article class="panel jobs-panel pipeline-panel">
                 <div class="panel-heading">
-                  <div><span class="section-kicker">Activity</span><h2>Recent jobs</h2></div>
+                  <div><span class="section-kicker">Live operations</span><h2>Job pipeline</h2></div>
                   <span class="auto-refresh"><span></span> Live</span>
                 </div>
-                <div class="job-list" id="job-list"></div>
+                <p class="panel-copy pipeline-copy" id="pipeline-status">Ready for your first document.</p>
+                <div class="pipeline-board" id="pipeline-board">
+                  <section class="pipeline-column queued-column">
+                    <header><div><span class="lane-dot"></span><strong>Queued</strong></div><b id="queue-count">0</b></header>
+                    <p>Safely stored, waiting for a worker.</p>
+                    <div class="job-lane" id="queue-list"></div>
+                  </section>
+                  <section class="pipeline-column running-column">
+                    <header><div><span class="lane-dot"></span><strong>Processing</strong></div><b id="running-count">0</b></header>
+                    <p>Claimed by the analysis worker.</p>
+                    <div class="job-lane" id="running-list"></div>
+                  </section>
+                  <section class="pipeline-column complete-column">
+                    <header><div><span class="lane-dot"></span><strong>Completed</strong></div><b id="completed-count">0</b></header>
+                    <p>Results saved and ready to review.</p>
+                    <div class="job-lane" id="completed-list"></div>
+                  </section>
+                </div>
               </article>
             </div>
           </section>

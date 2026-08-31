@@ -34,13 +34,14 @@ public class JobProcessorService {
         this.objectMapper = objectMapper;
     }
 
-    @Scheduled(fixedDelayString = "${docflow.worker.poll-ms:1000}")
+    @Scheduled(fixedDelayString = "${docflow.worker.poll-ms:1200}")
     @Transactional
-    public void processNextQueuedJob() {
-        jobRepository.findNextQueuedForUpdate().ifPresent(this::process);
+    public void advancePipeline() {
+        jobRepository.findNextRunningForUpdate().ifPresent(this::completeRunningJob);
+        jobRepository.findNextQueuedForUpdate().ifPresent(this::startQueuedJob);
     }
 
-    private void process(Job job) {
+    private void startQueuedJob(Job job) {
         int attemptNumber = job.getAttemptCount() + 1;
         JobAttempt attempt = new JobAttempt(job, attemptNumber);
         jobAttemptRepository.save(attempt);
@@ -48,6 +49,12 @@ public class JobProcessorService {
         job.setAttemptCount(attemptNumber);
         job.setStatus(JobStatus.RUNNING);
         job.setErrorMessage(null);
+        job.setNextRunAt(null);
+    }
+
+    private void completeRunningJob(Job job) {
+        JobAttempt attempt = jobAttemptRepository.findFirstByJobIdOrderByAttemptNumDesc(job.getId())
+                .orElseGet(() -> jobAttemptRepository.save(new JobAttempt(job, job.getAttemptCount())));
 
         try {
             String result = switch (job.getType().toUpperCase(Locale.ROOT)) {
@@ -62,10 +69,10 @@ public class JobProcessorService {
         } catch (Exception ex) {
             String message = ex.getMessage() == null ? "Document processing failed" : ex.getMessage();
             job.setErrorMessage(message);
-            job.setStatus(attemptNumber >= job.getMaxAttempts()
-                    ? JobStatus.DEAD_LETTER
-                    : JobStatus.FAILED);
-            attempt.setOutcome(job.getStatus().name());
+            boolean exhausted = job.getAttemptCount() >= job.getMaxAttempts();
+            job.setStatus(exhausted ? JobStatus.DEAD_LETTER : JobStatus.QUEUED);
+            job.setNextRunAt(exhausted ? null : Instant.now().plusSeconds(2));
+            attempt.setOutcome(JobStatus.FAILED.name());
             attempt.setError(message);
         } finally {
             attempt.setFinishedAt(Instant.now());
@@ -107,4 +114,3 @@ public class JobProcessorService {
         return objectMapper.writeValueAsString(result);
     }
 }
-

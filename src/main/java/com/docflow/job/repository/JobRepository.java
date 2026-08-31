@@ -17,10 +17,19 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     @Query(value = """
             SELECT * FROM jobs
             WHERE status = 'QUEUED'
+              AND (next_run_at IS NULL OR next_run_at <= now())
             ORDER BY created_at ASC
             FOR UPDATE SKIP LOCKED
             LIMIT 1
             """, nativeQuery = true)
     Optional<Job> findNextQueuedForUpdate();
-}
 
+    @Query(value = """
+            SELECT * FROM jobs
+            WHERE status = 'RUNNING'
+            ORDER BY updated_at ASC
+            FOR UPDATE SKIP LOCKED
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<Job> findNextRunningForUpdate();
+}

@@ -33,7 +33,14 @@ const elements = {
   keysTab: document.querySelector("#keys-tab"),
   jobsPanel: document.querySelector("#jobs-panel"),
   keysPanel: document.querySelector("#keys-panel"),
-  jobList: document.querySelector("#job-list"),
+  pipelineBoard: document.querySelector("#pipeline-board"),
+  pipelineStatus: document.querySelector("#pipeline-status"),
+  queueList: document.querySelector("#queue-list"),
+  runningList: document.querySelector("#running-list"),
+  completedList: document.querySelector("#completed-list"),
+  queueCount: document.querySelector("#queue-count"),
+  runningCount: document.querySelector("#running-count"),
+  completedCount: document.querySelector("#completed-count"),
   keyList: document.querySelector("#key-list"),
   jobForm: document.querySelector("#job-form"),
   documentText: document.querySelector("#document-text"),
@@ -284,7 +291,10 @@ function metric(label, value) {
 }
 
 function renderJobs() {
-  const active = state.jobs.filter(job => ["QUEUED", "RUNNING"].includes(job.status)).length;
+  const queuedJobs = state.jobs.filter(job => ["QUEUED", "RETRY_SCHEDULED"].includes(job.status));
+  const runningJobs = state.jobs.filter(job => job.status === "RUNNING");
+  const completedJobs = state.jobs.filter(job => !["QUEUED", "RETRY_SCHEDULED", "RUNNING"].includes(job.status));
+  const active = queuedJobs.length + runningJobs.length;
   const succeeded = state.jobs.filter(job => job.status === "SUCCEEDED").length;
   const failed = state.jobs.filter(job => ["FAILED", "DEAD_LETTER"].includes(job.status)).length;
   elements.statTotal.textContent = state.jobs.length;
@@ -292,22 +302,36 @@ function renderJobs() {
   elements.statSucceeded.textContent = succeeded;
   elements.statFailed.textContent = failed;
 
-  if (!state.jobs.length) {
-    elements.jobList.innerHTML = '<div class="empty-list">No jobs yet.<br>Paste a document and run your first analysis.</div>';
-    return;
+  elements.queueCount.textContent = queuedJobs.length;
+  elements.runningCount.textContent = runningJobs.length;
+  elements.completedCount.textContent = completedJobs.length;
+
+  if (runningJobs.length) {
+    elements.pipelineStatus.textContent = `${runningJobs.length} job${runningJobs.length === 1 ? " is" : "s are"} inside the worker now. This view refreshes automatically.`;
+  } else if (queuedJobs.length) {
+    elements.pipelineStatus.textContent = `${queuedJobs.length} job${queuedJobs.length === 1 ? " is" : "s are"} safely queued and waiting to be claimed.`;
+  } else if (completedJobs.length) {
+    elements.pipelineStatus.textContent = "The worker is idle. All submitted jobs have reached a final state.";
+  } else {
+    elements.pipelineStatus.textContent = "Ready for your first document. Submit text to watch it move through the backend.";
   }
 
-  elements.jobList.innerHTML = state.jobs.map(job => {
+  elements.queueList.innerHTML = renderJobLane(queuedJobs, "Queue is clear");
+  elements.runningList.innerHTML = renderJobLane(runningJobs, "Worker is idle");
+  elements.completedList.innerHTML = renderJobLane(completedJobs.slice(0, 8), "No results yet");
+}
+
+function renderJobLane(jobs, emptyMessage) {
+  if (!jobs.length) return `<div class="lane-empty"><span>✓</span>${escapeHtml(emptyMessage)}</div>`;
+  return jobs.map(job => {
     const input = safeJson(job.inputJson);
     const result = safeJson(job.resultJson);
-    const preview = input?.text ? input.text.replace(/\s+/g, " ").slice(0, 62) : job.type;
+    const preview = input?.text ? input.text.replace(/\s+/g, " ").slice(0, 54) : job.type;
     const metrics = result ? `
       <div class="metrics">
         ${metric("Words", result.words)}
         ${metric("Characters", result.characters)}
         ${metric("Sentences", result.sentences)}
-        ${metric("Paragraphs", result.paragraphs)}
-        ${metric("Lines", result.lines)}
         ${metric("Read time", formatDuration(result.estimatedReadingTimeSeconds))}
       </div>
     ` : "";
@@ -325,7 +349,7 @@ function renderJobs() {
         </div>
         ${metrics}
         ${job.errorMessage ? `<p class="job-error">${escapeHtml(job.errorMessage)}</p>` : ""}
-        <div class="job-meta"><span>${escapeHtml(job.type)}</span>${cancel}</div>
+        <div class="job-meta"><span>Attempt ${job.attemptCount}/${job.maxAttempts}</span>${cancel}</div>
       </article>
     `;
   }).join("");
@@ -354,7 +378,7 @@ async function submitJob(event) {
     updateTextCounter();
     renderJobs();
     updatePolling();
-    toast("Document submitted. Processing has started.");
+    toast("Document queued. Watch it move through the pipeline.");
   } catch (error) {
     toast(error.message, "error");
   } finally {
@@ -388,7 +412,7 @@ function stopPolling() {
 function updatePolling() {
   const hasActive = state.jobs.some(job => ["QUEUED", "RUNNING"].includes(job.status));
   if (hasActive && !state.pollTimer) {
-    state.pollTimer = window.setInterval(() => loadJobs({ quiet: true }), 1400);
+    state.pollTimer = window.setInterval(() => loadJobs({ quiet: true }), 600);
   } else if (!hasActive) {
     stopPolling();
   }
@@ -516,7 +540,7 @@ elements.projectList.addEventListener("click", event => {
   const button = event.target.closest("[data-project-id]");
   if (button) selectProject(button.dataset.projectId);
 });
-elements.jobList.addEventListener("click", event => {
+elements.pipelineBoard.addEventListener("click", event => {
   const button = event.target.closest("[data-cancel-job]");
   if (button) cancelJob(button.dataset.cancelJob);
 });
@@ -528,4 +552,3 @@ elements.keyList.addEventListener("click", event => {
 setAuthMode("login");
 if (state.token) showApp();
 else showAuth();
-
