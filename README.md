@@ -1,14 +1,15 @@
 # DocFlow
 
-DocFlow is a **Spring Boot backend** for asynchronous document-processing jobs. It provides a production-shaped foundation for managing users, projects, API keys, and job queues.
+DocFlow is a deployable document-analysis workspace backed by an asynchronous Spring Boot API. Its browser dashboard manages projects, submits text documents, shows completed results, and creates project-scoped API keys.
 
 ## What it does
 
 - Users register and log in (JWT authentication)
 - Users create projects to group their work
-- Projects generate API keys for programmatic access
-- Projects submit jobs that are queued for later processing
+- Projects generate scoped API keys for programmatic job access
+- Projects submit text-analysis jobs that a background worker processes
 - Jobs have controlled status transitions and full lifecycle tracking
+- Results include word, character, line, sentence, paragraph, and reading-time metrics
 
 ## Tech Stack
 
@@ -126,7 +127,14 @@ curl -X POST http://localhost:8080/api/projects \
 curl -X POST http://localhost:8080/api/projects/PROJECT_ID/jobs \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"type":"PDF_CONVERT","inputJson":"{\"url\":\"https://example.com\"}","maxAttempts":3}'
+  -d '{"type":"TEXT_ANALYZE","inputJson":"{\"text\":\"A real document to analyze.\"}","maxAttempts":3}'
+```
+
+An API key can replace the Bearer token for job endpoints in its own project:
+
+```bash
+curl http://localhost:8080/api/projects/PROJECT_ID/jobs \
+  -H "X-API-Key: df_your_key_here"
 ```
 
 ## Job Statuses
@@ -163,7 +171,7 @@ Tests use an H2 in-memory database (Flyway disabled for tests).
 
 ## Design notes
 
-**Why JWT instead of sessions** — DocFlow is a machine-facing REST API. Clients attach a Bearer token explicitly; the server validates the signature and moves on with no session store and no sticky routing requirement. The tradeoff is revocability: a stolen token is valid until expiry, so the mitigation is short TTLs. Sessions would give instant revocation but at the cost of shared session state and sticky routing — the right call depends on whether the client is a browser or a machine.
+**Why stateless credentials instead of sessions** — The browser attaches a Bearer token explicitly, while integrations can send a project-scoped API key in `X-API-Key`. The server validates either credential without a session store or sticky routing. The tradeoff for JWTs is revocability: a stolen token is valid until expiry, so the mitigation is short TTLs. API keys can be revoked immediately from the dashboard.
 
 **Why tenant access requires two checks** — Every operation first calls `loadAndVerifyOwnership` to confirm the caller owns the project in the URL. For jobs and API keys, a second check then confirms the resource actually belongs to that project (e.g. `job.project.id == projectId`). The first check prevents cross-tenant project access; the second prevents IDOR within a tenant's own projects — both are required, and omitting either reopens a vulnerability.
 
