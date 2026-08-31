@@ -1,12 +1,14 @@
 # DocFlow
 
-DocFlow is a deployable document-analysis workspace backed by an asynchronous Spring Boot API. Its browser dashboard manages projects, submits text documents, shows completed results, and creates project-scoped API keys.
+DocFlow is a deployable document-analysis workspace backed by an asynchronous Spring Boot API. Its browser dashboard manages projects, extracts text from uploaded documents, shows jobs moving through a real worker, displays completed results, and creates project-scoped API keys.
 
 ## What it does
 
 - Users register and log in (JWT authentication)
 - Users create projects to group their work
-- Projects generate scoped API keys for programmatic job access
+- Projects upload PDF, DOCX, and TXT files up to 10 MB and preview the extracted text
+- The original file is discarded after extraction; document metadata and extracted text are retained
+- Projects generate scoped API keys for programmatic document and job access
 - Projects submit text-analysis jobs that a background worker processes
 - Jobs have controlled status transitions and full lifecycle tracking
 - Results include word, character, line, sentence, paragraph, and reading-time metrics
@@ -24,6 +26,7 @@ DocFlow is a deployable document-analysis workspace backed by an asynchronous Sp
 | Migrations | Flyway |
 | Containers | Docker Compose |
 | Validation | Bean Validation (jakarta) |
+| Document extraction | Apache PDFBox + Apache POI |
 
 ## Project Structure
 
@@ -34,6 +37,7 @@ src/main/java/com/docflow/
 ├── auth/            # Registration, login, JWT, Spring Security config
 ├── project/         # Project CRUD
 ├── apikey/          # API key generation and revocation
+├── document/        # Upload validation, extraction, and extracted-text storage
 ├── job/             # Job submission and lifecycle
 └── common/          # Global exception handler, shared exceptions
 ```
@@ -104,6 +108,14 @@ mvn spring-boot:run
 | GET | `/api/projects/{id}/jobs/{jobId}` | Get job details |
 | POST | `/api/projects/{id}/jobs/{jobId}/cancel` | Cancel a queued/running job |
 
+### Documents
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/projects/{id}/documents` | Upload a PDF, DOCX, or TXT file as multipart field `file` |
+| GET | `/api/projects/{id}/documents` | List extracted documents |
+| GET | `/api/projects/{id}/documents/{documentId}` | Get metadata and extracted text |
+
 ## Example Usage
 
 ```bash
@@ -123,6 +135,11 @@ curl -X POST http://localhost:8080/api/projects \
   -H 'Content-Type: application/json' \
   -d '{"name":"My Project","description":"Test project"}'
 
+# Upload and extract a document (replace PROJECT_ID)
+curl -X POST http://localhost:8080/api/projects/PROJECT_ID/documents \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@report.pdf"
+
 # Submit a job (replace PROJECT_ID)
 curl -X POST http://localhost:8080/api/projects/PROJECT_ID/jobs \
   -H "Authorization: Bearer $TOKEN" \
@@ -130,7 +147,7 @@ curl -X POST http://localhost:8080/api/projects/PROJECT_ID/jobs \
   -d '{"type":"TEXT_ANALYZE","inputJson":"{\"text\":\"A real document to analyze.\"}","maxAttempts":3}'
 ```
 
-An API key can replace the Bearer token for job endpoints in its own project:
+An API key can replace the Bearer token for document and job endpoints in its own project:
 
 ```bash
 curl http://localhost:8080/api/projects/PROJECT_ID/jobs \
@@ -180,3 +197,4 @@ Tests use an H2 in-memory database (Flyway disabled for tests).
 **Why CSRF is explicitly disabled** — CSRF exploits browsers automatically attaching cookies to cross-origin requests. Bearer tokens require explicit attachment by client code, so the attack surface doesn't exist. Disabling it here is correct; a session-cookie-based app would need it enabled. The reasoning should be explicit, not accidental.
 
 **Why UUID primary keys** — Sequential IDs expose enumeration: a user could walk `project/1`, `project/2`, and so on. UUIDs eliminate that, are safe to expose in URLs, and merge cleanly across environments. The cost is larger indexes and no natural ordering, so `created_at` handles anything that needs to be sorted.
+

@@ -64,11 +64,15 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         }
 
         ApiKey apiKey = match.get();
-        String jobPath = "/api/projects/" + apiKey.getProject().getId() + "/jobs";
+        String projectPath = "/api/projects/" + apiKey.getProject().getId();
+        String jobPath = projectPath + "/jobs";
+        String documentPath = projectPath + "/documents";
         String requestPath = request.getRequestURI();
-        if (!requestPath.equals(jobPath) && !requestPath.startsWith(jobPath + "/")) {
+        boolean jobAccess = requestPath.equals(jobPath) || requestPath.startsWith(jobPath + "/");
+        boolean documentAccess = requestPath.equals(documentPath) || requestPath.startsWith(documentPath + "/");
+        if (!jobAccess && !documentAccess) {
             writeError(response, HttpServletResponse.SC_FORBIDDEN,
-                    "This API key can only access jobs in its own project");
+                    "This API key can only access documents and jobs in its own project");
             return;
         }
 
@@ -90,3 +94,4 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         response.getWriter().write("{\"status\":" + status + ",\"message\":\"" + message + "\"}");
     }
 }
+

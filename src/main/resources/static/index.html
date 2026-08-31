@@ -195,14 +195,34 @@
             <div class="content-grid">
               <article class="panel submit-panel">
                 <div class="panel-heading">
-                  <div><span class="section-kicker">New job</span><h2>Analyze a text document</h2></div>
+                  <div><span class="section-kicker">New document</span><h2>Upload and analyze</h2></div>
                   <span class="job-type">TEXT_ANALYZE</span>
                 </div>
-                <p class="panel-copy">Paste any document below. The worker will count words, characters, lines, sentences, paragraphs, and estimated reading time.</p>
+                <p class="panel-copy">Upload a PDF, Word document, or text file. DocFlow extracts a readable preview before the worker analyzes it.</p>
                 <form id="job-form">
+                  <label class="file-drop" id="file-drop" for="document-file">
+                    <input id="document-file" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain">
+                    <span class="upload-icon" aria-hidden="true">↑</span>
+                    <span class="upload-copy"><strong>Drop a document here</strong><small>or choose a file · PDF, DOCX, TXT · up to 10 MB</small></span>
+                    <span class="upload-action">Choose file</span>
+                  </label>
+                  <div class="upload-progress" id="upload-progress" hidden>
+                    <span class="upload-spinner" aria-hidden="true"></span>
+                    <span><strong>Reading document</strong><small id="upload-progress-name"></small></span>
+                  </div>
+                  <div class="document-preview" id="document-preview" hidden>
+                    <div class="document-preview-head">
+                      <span class="file-badge" id="file-badge">PDF</span>
+                      <span><strong id="uploaded-file-name"></strong><small id="uploaded-file-meta"></small></span>
+                      <button id="clear-upload-button" type="button" aria-label="Remove uploaded document">×</button>
+                    </div>
+                    <pre id="extracted-preview"></pre>
+                    <p>The extracted text is editable below. The original file is not retained.</p>
+                  </div>
+                  <div class="source-divider"><span>or paste text</span></div>
                   <label>
-                    <span>Document text</span>
-                    <textarea id="document-text" rows="12" placeholder="Paste an article, brief, report, or any other text…" required></textarea>
+                    <span>Extracted or pasted text</span>
+                    <textarea id="document-text" rows="8" placeholder="Upload a file above, or paste an article, brief, report, or other text…" required></textarea>
                   </label>
                   <div class="form-footer">
                     <span id="text-counter">0 characters</span>
@@ -303,3 +323,4 @@
   <script src="/app.js" defer></script>
 </body>
 </html>
+

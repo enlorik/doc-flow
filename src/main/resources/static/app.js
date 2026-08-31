@@ -6,6 +6,7 @@ const state = {
   jobs: [],
   portfolioJobs: [],
   keys: [],
+  uploadedDocument: null,
   authMode: "login",
   activeView: "jobs",
   pollTimer: null
@@ -55,6 +56,16 @@ const elements = {
   completedCount: document.querySelector("#completed-count"),
   keyList: document.querySelector("#key-list"),
   jobForm: document.querySelector("#job-form"),
+  documentFile: document.querySelector("#document-file"),
+  fileDrop: document.querySelector("#file-drop"),
+  uploadProgress: document.querySelector("#upload-progress"),
+  uploadProgressName: document.querySelector("#upload-progress-name"),
+  documentPreview: document.querySelector("#document-preview"),
+  fileBadge: document.querySelector("#file-badge"),
+  uploadedFileName: document.querySelector("#uploaded-file-name"),
+  uploadedFileMeta: document.querySelector("#uploaded-file-meta"),
+  extractedPreview: document.querySelector("#extracted-preview"),
+  clearUploadButton: document.querySelector("#clear-upload-button"),
   documentText: document.querySelector("#document-text"),
   textCounter: document.querySelector("#text-counter"),
   submitJobButton: document.querySelector("#submit-job-button"),
@@ -106,6 +117,12 @@ function formatDuration(seconds) {
   return `${Math.ceil(seconds / 60)} min`;
 }
 
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function setButtonBusy(button, busy, busyLabel) {
   if (!button.dataset.defaultLabel) button.dataset.defaultLabel = button.textContent.trim();
   button.disabled = busy;
@@ -148,6 +165,25 @@ async function api(path, options = {}) {
   return payload;
 }
 
+async function uploadApi(path, file) {
+  const headers = { Accept: "application/json" };
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(path, { method: "POST", headers, body: form });
+  const contentType = response.headers.get("content-type") || "";
+  const payload = contentType.includes("application/json") ? await response.json() : null;
+
+  if (!response.ok) {
+    if (state.token && (response.status === 401 || response.status === 403)) {
+      clearSession();
+      showAuth();
+    }
+    throw new Error(errorMessage(payload, `Upload failed (${response.status})`));
+  }
+  return payload;
+}
+
 function saveSession(auth) {
   state.token = auth.token;
   state.email = auth.email;
@@ -163,6 +199,7 @@ function clearSession() {
   state.jobs = [];
   state.portfolioJobs = [];
   state.keys = [];
+  clearUploadedDocument();
   sessionStorage.removeItem("docflow_token");
   sessionStorage.removeItem("docflow_email");
   sessionStorage.removeItem("docflow_project");
@@ -253,6 +290,7 @@ function renderProjects() {
 
 async function selectProject(projectId) {
   stopPolling();
+  if (state.projectId !== projectId) clearUploadedDocument();
   state.projectId = projectId;
   sessionStorage.setItem("docflow_project", projectId);
   const project = state.projects.find(item => item.id === projectId);
@@ -451,7 +489,8 @@ function renderJobLane(jobs, emptyMessage) {
   return jobs.map(job => {
     const input = safeJson(job.inputJson);
     const result = safeJson(job.resultJson);
-    const preview = input?.text ? input.text.replace(/\s+/g, " ").slice(0, 54) : job.type;
+    const preview = input?.fileName || (input?.text ? input.text.replace(/\s+/g, " ").slice(0, 54) : job.type);
+    const source = input?.fileName ? `Uploaded file · ${formatDate(job.createdAt)}` : formatDate(job.createdAt);
     const metrics = result ? `
       <div class="metrics">
         ${metric("Words", result.words)}
@@ -468,7 +507,7 @@ function renderJobLane(jobs, emptyMessage) {
         <div class="job-top">
           <div class="job-title">
             <strong>${escapeHtml(preview || "Text analysis")}</strong>
-            <span>${formatDate(job.createdAt)}</span>
+            <span>${escapeHtml(source)}</span>
           </div>
           <span class="status ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span>
         </div>
@@ -493,13 +532,19 @@ async function submitJob(event) {
       method: "POST",
       body: {
         type: "TEXT_ANALYZE",
-        inputJson: JSON.stringify({ text }),
+        inputJson: JSON.stringify({
+          text,
+          documentId: state.uploadedDocument?.id || null,
+          fileName: state.uploadedDocument?.originalName || null,
+          contentType: state.uploadedDocument?.contentType || null
+        }),
         idempotencyKey,
         maxAttempts: 1
       }
     });
     state.jobs.unshift(job);
     elements.documentText.value = "";
+    clearUploadedDocument({ clearText: false });
     updateTextCounter();
     renderJobs();
     updatePolling();
@@ -508,6 +553,66 @@ async function submitJob(event) {
     toast(error.message, "error");
   } finally {
     setButtonBusy(elements.submitJobButton, false);
+  }
+}
+
+function clearUploadedDocument({ clearText = true } = {}) {
+  state.uploadedDocument = null;
+  if (elements.documentFile) elements.documentFile.value = "";
+  if (elements.documentPreview) elements.documentPreview.hidden = true;
+  if (elements.uploadProgress) elements.uploadProgress.hidden = true;
+  if (elements.fileDrop) {
+    elements.fileDrop.classList.remove("dragover", "uploading");
+    elements.fileDrop.removeAttribute("aria-busy");
+  }
+  if (clearText && elements.documentText) {
+    elements.documentText.value = "";
+    updateTextCounter();
+  }
+}
+
+async function handleDocumentFile(file) {
+  if (!file || !state.projectId || state.projectId === "all") return;
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (!["pdf", "docx", "txt"].includes(extension)) {
+    toast("Choose a PDF, DOCX, or TXT file.", "error");
+    clearUploadedDocument({ clearText: false });
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    toast("Files must be 10 MB or smaller.", "error");
+    clearUploadedDocument({ clearText: false });
+    return;
+  }
+
+  elements.uploadProgressName.textContent = file.name;
+  elements.uploadProgress.hidden = false;
+  elements.documentPreview.hidden = true;
+  elements.fileDrop.classList.add("uploading");
+  elements.fileDrop.setAttribute("aria-busy", "true");
+  elements.documentFile.disabled = true;
+  elements.submitJobButton.disabled = true;
+  try {
+    const document = await uploadApi(`/api/projects/${state.projectId}/documents`, file);
+    state.uploadedDocument = document;
+    elements.documentText.value = document.extractedText;
+    elements.fileBadge.textContent = extension.toUpperCase();
+    elements.uploadedFileName.textContent = document.originalName;
+    elements.uploadedFileMeta.textContent = `${formatBytes(document.sizeBytes)} · ${document.extractedCharacters.toLocaleString()} extracted characters`;
+    const excerpt = document.extractedText.slice(0, 900);
+    elements.extractedPreview.textContent = `${excerpt}${document.extractedText.length > excerpt.length ? "\n…" : ""}`;
+    elements.documentPreview.hidden = false;
+    updateTextCounter();
+    toast("Text extracted. Review it, then send it through the flow.");
+  } catch (error) {
+    clearUploadedDocument({ clearText: false });
+    toast(error.message, "error");
+  } finally {
+    elements.uploadProgress.hidden = true;
+    elements.fileDrop.classList.remove("uploading");
+    elements.fileDrop.removeAttribute("aria-busy");
+    elements.documentFile.disabled = false;
+    elements.submitJobButton.disabled = false;
   }
 }
 
@@ -650,6 +755,21 @@ elements.projectForm.addEventListener("submit", createProject);
 elements.jobForm.addEventListener("submit", submitJob);
 elements.keyForm.addEventListener("submit", createKey);
 elements.documentText.addEventListener("input", updateTextCounter);
+elements.documentFile.addEventListener("change", () => handleDocumentFile(elements.documentFile.files[0]));
+elements.clearUploadButton.addEventListener("click", () => clearUploadedDocument());
+for (const eventName of ["dragenter", "dragover"]) {
+  elements.fileDrop.addEventListener(eventName, event => {
+    event.preventDefault();
+    elements.fileDrop.classList.add("dragover");
+  });
+}
+for (const eventName of ["dragleave", "drop"]) {
+  elements.fileDrop.addEventListener(eventName, event => {
+    event.preventDefault();
+    elements.fileDrop.classList.remove("dragover");
+  });
+}
+elements.fileDrop.addEventListener("drop", event => handleDocumentFile(event.dataTransfer.files[0]));
 elements.jobsTab.addEventListener("click", () => setView("jobs"));
 elements.keysTab.addEventListener("click", () => setView("keys"));
 elements.copyKeyButton.addEventListener("click", copyKey);
@@ -692,3 +812,4 @@ document.addEventListener("keydown", event => {
 setAuthMode("login");
 if (state.token) showApp();
 else showAuth();
+
