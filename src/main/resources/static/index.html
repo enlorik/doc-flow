@@ -78,10 +78,15 @@
 
   <section class="app-shell" id="app-view" hidden>
     <header class="topbar">
-      <a class="brand" href="/" aria-label="DocFlow dashboard">
-        <span class="brand-mark">D</span>
-        <span>DocFlow</span>
-      </a>
+      <div class="topbar-left">
+        <button class="menu-button" id="sidebar-toggle" type="button" aria-label="Toggle project navigation" aria-expanded="true">
+          <span></span><span></span><span></span>
+        </button>
+        <a class="brand" href="/" aria-label="DocFlow dashboard">
+          <span class="brand-mark">D</span>
+          <span>DocFlow</span>
+        </a>
+      </div>
       <div class="topbar-actions">
         <span class="api-status"><span></span> API online</span>
         <span class="user-email" id="user-email"></span>
@@ -98,9 +103,16 @@
           </div>
           <button class="icon-button" id="new-project-button" type="button" aria-label="Create project">+</button>
         </div>
-        <nav class="project-list" id="project-list" aria-label="Projects"></nav>
+        <nav class="project-list" aria-label="Projects">
+          <button class="project-item overview-item" id="all-projects-button" type="button">
+            <span class="project-icon" aria-hidden="true">⌘</span>
+            <span class="project-copy"><strong>All projects</strong><span>Global flow overview</span></span>
+          </button>
+          <div class="project-items" id="project-list"></div>
+        </nav>
         <button class="button secondary full sidebar-create" id="sidebar-new-project-button" type="button">+ New project</button>
       </aside>
+      <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="Close project navigation"></button>
 
       <main class="main-content">
         <section class="empty-state" id="empty-state" hidden>
@@ -108,6 +120,36 @@
           <h1>Create your first project</h1>
           <p>Projects keep document jobs and API credentials organized. Start one, then submit a document for analysis.</p>
           <button class="button primary" id="empty-new-project-button" type="button">Create project</button>
+        </section>
+
+        <section id="overview-view" hidden>
+          <div class="project-header overview-header">
+            <div>
+              <span class="section-kicker">Operations overview</span>
+              <h1>All project flows</h1>
+              <p>See every workspace moving through the same queue, worker, and results system.</p>
+            </div>
+            <button class="button primary" id="overview-new-project-button" type="button">+ New project</button>
+          </div>
+
+          <div class="stats-grid overview-stats">
+            <article class="stat"><span>Projects</span><strong id="overview-projects">0</strong></article>
+            <article class="stat active-stat"><span>Moving now</span><strong id="overview-active">0</strong></article>
+            <article class="stat"><span>Completed</span><strong id="overview-completed">0</strong></article>
+            <article class="stat"><span>Total jobs</span><strong id="overview-total">0</strong></article>
+          </div>
+
+          <article class="panel portfolio-panel">
+            <div class="panel-heading portfolio-heading">
+              <div><span class="section-kicker">Portfolio pipeline</span><h2>Projects through the backend</h2></div>
+              <span class="auto-refresh"><span></span> Live</span>
+            </div>
+            <p class="panel-copy">Each row is one project. Open a project to submit documents or inspect individual job results.</p>
+            <div class="portfolio-legend" aria-hidden="true">
+              <span>Project</span><span>Queued</span><span>Processing</span><span>Completed</span>
+            </div>
+            <div class="project-flow-list" id="project-flow-list"></div>
+          </article>
         </section>
 
         <section id="project-view" hidden>

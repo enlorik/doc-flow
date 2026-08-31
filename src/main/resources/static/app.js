@@ -1,14 +1,21 @@
 const state = {
   token: sessionStorage.getItem("docflow_token"),
   email: sessionStorage.getItem("docflow_email"),
-  projectId: sessionStorage.getItem("docflow_project"),
+  projectId: sessionStorage.getItem("docflow_project") || "all",
   projects: [],
   jobs: [],
+  portfolioJobs: [],
   keys: [],
   authMode: "login",
   activeView: "jobs",
   pollTimer: null
 };
+
+if (sessionStorage.getItem("docflow_overview_enabled") !== "true") {
+  state.projectId = "all";
+  sessionStorage.setItem("docflow_project", "all");
+  sessionStorage.setItem("docflow_overview_enabled", "true");
+}
 
 const elements = {
   authView: document.querySelector("#auth-view"),
@@ -24,8 +31,13 @@ const elements = {
   authSwitch: document.querySelector("#auth-switch"),
   authSwitchCopy: document.querySelector("#auth-switch-copy"),
   userEmail: document.querySelector("#user-email"),
+  workspace: document.querySelector(".workspace"),
+  sidebarToggle: document.querySelector("#sidebar-toggle"),
+  sidebarScrim: document.querySelector("#sidebar-scrim"),
+  allProjectsButton: document.querySelector("#all-projects-button"),
   projectList: document.querySelector("#project-list"),
   emptyState: document.querySelector("#empty-state"),
+  overviewView: document.querySelector("#overview-view"),
   projectView: document.querySelector("#project-view"),
   projectName: document.querySelector("#project-name"),
   projectDescription: document.querySelector("#project-description"),
@@ -64,7 +76,12 @@ const elements = {
   statTotal: document.querySelector("#stat-total"),
   statActive: document.querySelector("#stat-active"),
   statSucceeded: document.querySelector("#stat-succeeded"),
-  statFailed: document.querySelector("#stat-failed")
+  statFailed: document.querySelector("#stat-failed"),
+  overviewProjects: document.querySelector("#overview-projects"),
+  overviewActive: document.querySelector("#overview-active"),
+  overviewCompleted: document.querySelector("#overview-completed"),
+  overviewTotal: document.querySelector("#overview-total"),
+  projectFlowList: document.querySelector("#project-flow-list")
 };
 
 function escapeHtml(value) {
@@ -141,9 +158,10 @@ function saveSession(auth) {
 function clearSession() {
   state.token = null;
   state.email = null;
-  state.projectId = null;
+  state.projectId = "all";
   state.projects = [];
   state.jobs = [];
+  state.portfolioJobs = [];
   state.keys = [];
   sessionStorage.removeItem("docflow_token");
   sessionStorage.removeItem("docflow_email");
@@ -161,6 +179,7 @@ async function showApp() {
   elements.authView.hidden = true;
   elements.appView.hidden = false;
   elements.userEmail.textContent = state.email || "";
+  applySidebarState();
   await loadProjects();
 }
 
@@ -206,41 +225,67 @@ async function loadProjects() {
     renderProjects();
     if (!state.projects.length) {
       elements.emptyState.hidden = false;
+      elements.overviewView.hidden = true;
       elements.projectView.hidden = true;
       return;
     }
     const existing = state.projects.find(project => project.id === state.projectId);
-    await selectProject((existing || state.projects[0]).id);
+    if (state.projectId === "all" || !existing) await selectAllProjects();
+    else await selectProject(existing.id);
   } catch (error) {
     toast(error.message, "error");
   }
 }
 
 function renderProjects() {
+  elements.allProjectsButton.classList.toggle("active", state.projectId === "all");
   if (!state.projects.length) {
-    elements.projectList.innerHTML = '<div class="empty-list">No projects yet</div>';
+    elements.projectList.innerHTML = "";
     return;
   }
   elements.projectList.innerHTML = state.projects.map(project => `
     <button class="project-item ${project.id === state.projectId ? "active" : ""}" type="button" data-project-id="${project.id}">
-      <strong>${escapeHtml(project.name)}</strong>
-      <span>${escapeHtml(project.description || "Document workspace")}</span>
+      <span class="project-icon" aria-hidden="true">${escapeHtml(project.name.slice(0, 2).toUpperCase())}</span>
+      <span class="project-copy"><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.description || "Document workspace")}</span></span>
     </button>
   `).join("");
 }
 
 async function selectProject(projectId) {
+  stopPolling();
   state.projectId = projectId;
   sessionStorage.setItem("docflow_project", projectId);
   const project = state.projects.find(item => item.id === projectId);
   if (!project) return;
   elements.emptyState.hidden = true;
+  elements.overviewView.hidden = true;
   elements.projectView.hidden = false;
   elements.projectName.textContent = project.name;
   elements.projectDescription.textContent = project.description || "Document processing workspace";
   renderProjects();
+  closeSidebarOnMobile();
   await loadJobs();
   if (state.activeView === "keys") await loadKeys();
+}
+
+async function selectAllProjects() {
+  stopPolling();
+  state.projectId = "all";
+  sessionStorage.setItem("docflow_project", "all");
+  if (!state.projects.length) {
+    elements.emptyState.hidden = false;
+    elements.projectView.hidden = true;
+    elements.overviewView.hidden = true;
+    renderProjects();
+    closeSidebarOnMobile();
+    return;
+  }
+  elements.emptyState.hidden = true;
+  elements.projectView.hidden = true;
+  elements.overviewView.hidden = false;
+  renderProjects();
+  closeSidebarOnMobile();
+  await loadPortfolioJobs();
 }
 
 function openProjectDialog() {
@@ -271,8 +316,88 @@ async function createProject(event) {
   }
 }
 
+function isMobileNavigation() {
+  return window.matchMedia("(max-width: 720px)").matches;
+}
+
+function applySidebarState() {
+  const collapsed = localStorage.getItem("docflow_sidebar_collapsed") === "true";
+  elements.workspace.classList.toggle("sidebar-collapsed", !isMobileNavigation() && collapsed);
+  if (!isMobileNavigation()) elements.appView.classList.remove("sidebar-open");
+  const expanded = isMobileNavigation()
+    ? elements.appView.classList.contains("sidebar-open")
+    : !elements.workspace.classList.contains("sidebar-collapsed");
+  elements.sidebarToggle.setAttribute("aria-expanded", String(expanded));
+}
+
+function toggleSidebar() {
+  if (isMobileNavigation()) {
+    elements.appView.classList.toggle("sidebar-open");
+  } else {
+    const collapsed = elements.workspace.classList.toggle("sidebar-collapsed");
+    localStorage.setItem("docflow_sidebar_collapsed", String(collapsed));
+  }
+  applySidebarState();
+}
+
+function closeSidebarOnMobile() {
+  if (!isMobileNavigation()) return;
+  elements.appView.classList.remove("sidebar-open");
+  elements.sidebarToggle.setAttribute("aria-expanded", "false");
+}
+
+async function loadPortfolioJobs({ quiet = false } = {}) {
+  if (!state.projects.length || state.projectId !== "all") return;
+  try {
+    const groups = await Promise.all(state.projects.map(async project => ({
+      project,
+      jobs: await api(`/api/projects/${project.id}/jobs`)
+    })));
+    state.portfolioJobs = groups.flatMap(group => group.jobs.map(job => ({
+      ...job,
+      projectName: group.project.name
+    })));
+    renderPortfolio(groups);
+    updatePolling();
+  } catch (error) {
+    if (!quiet) toast(error.message, "error");
+  }
+}
+
+function renderPortfolio(groups) {
+  const activeJobs = state.portfolioJobs.filter(job => ["QUEUED", "RETRY_SCHEDULED", "RUNNING"].includes(job.status));
+  const completedJobs = state.portfolioJobs.filter(job => job.status === "SUCCEEDED");
+  elements.overviewProjects.textContent = state.projects.length;
+  elements.overviewActive.textContent = activeJobs.length;
+  elements.overviewCompleted.textContent = completedJobs.length;
+  elements.overviewTotal.textContent = state.portfolioJobs.length;
+
+  elements.projectFlowList.innerHTML = groups.map(({ project, jobs }) => {
+    const queued = jobs.filter(job => ["QUEUED", "RETRY_SCHEDULED"].includes(job.status)).length;
+    const running = jobs.filter(job => job.status === "RUNNING").length;
+    const completed = jobs.filter(job => !["QUEUED", "RETRY_SCHEDULED", "RUNNING"].includes(job.status)).length;
+    const status = running ? "Processing now" : queued ? "Waiting in queue" : jobs.length ? "Up to date" : "Ready for work";
+    const statusClass = running ? "moving" : queued ? "waiting" : "calm";
+    return `
+      <button class="project-flow-row" type="button" data-project-flow-id="${project.id}">
+        <span class="portfolio-project">
+          <span class="project-avatar">${escapeHtml(project.name.slice(0, 2).toUpperCase())}</span>
+          <span><strong>${escapeHtml(project.name)}</strong><small>${jobs.length} job${jobs.length === 1 ? "" : "s"} · ${escapeHtml(status)}</small></span>
+        </span>
+        <span class="portfolio-link ${queued || running ? "active" : ""}" aria-hidden="true"></span>
+        <span class="portfolio-node queue-node"><small>Queued</small><strong>${queued}</strong></span>
+        <span class="portfolio-link ${running ? "active" : ""}" aria-hidden="true"></span>
+        <span class="portfolio-node worker-node ${running ? "active" : ""}"><small>Processing</small><strong>${running}</strong></span>
+        <span class="portfolio-link ${running || completed ? "complete" : ""}" aria-hidden="true"></span>
+        <span class="portfolio-node result-node"><small>Completed</small><strong>${completed}</strong></span>
+        <span class="flow-health ${statusClass}">${escapeHtml(status)}</span>
+      </button>
+    `;
+  }).join("");
+}
+
 async function loadJobs({ quiet = false } = {}) {
-  if (!state.projectId) return;
+  if (!state.projectId || state.projectId === "all") return;
   try {
     state.jobs = await api(`/api/projects/${state.projectId}/jobs`);
     renderJobs();
@@ -410,9 +535,13 @@ function stopPolling() {
 }
 
 function updatePolling() {
-  const hasActive = state.jobs.some(job => ["QUEUED", "RUNNING"].includes(job.status));
+  const scopedJobs = state.projectId === "all" ? state.portfolioJobs : state.jobs;
+  const hasActive = scopedJobs.some(job => ["QUEUED", "RETRY_SCHEDULED", "RUNNING"].includes(job.status));
   if (hasActive && !state.pollTimer) {
-    state.pollTimer = window.setInterval(() => loadJobs({ quiet: true }), 600);
+    state.pollTimer = window.setInterval(() => {
+      if (state.projectId === "all") loadPortfolioJobs({ quiet: true });
+      else loadJobs({ quiet: true });
+    }, 600);
   } else if (!hasActive) {
     stopPolling();
   }
@@ -431,7 +560,7 @@ function setView(view) {
 }
 
 async function loadKeys() {
-  if (!state.projectId) return;
+  if (!state.projectId || state.projectId === "all") return;
   try {
     state.keys = await api(`/api/projects/${state.projectId}/keys`);
     renderKeys();
@@ -524,13 +653,16 @@ elements.documentText.addEventListener("input", updateTextCounter);
 elements.jobsTab.addEventListener("click", () => setView("jobs"));
 elements.keysTab.addEventListener("click", () => setView("keys"));
 elements.copyKeyButton.addEventListener("click", copyKey);
+elements.sidebarToggle.addEventListener("click", toggleSidebar);
+elements.sidebarScrim.addEventListener("click", closeSidebarOnMobile);
+elements.allProjectsButton.addEventListener("click", selectAllProjects);
 document.querySelector("#logout-button").addEventListener("click", () => { clearSession(); showAuth(); });
 document.querySelector("#refresh-button").addEventListener("click", async () => {
   await loadJobs();
   if (state.activeView === "keys") await loadKeys();
   toast("Project data refreshed.");
 });
-document.querySelectorAll("#new-project-button, #sidebar-new-project-button, #empty-new-project-button")
+document.querySelectorAll("#new-project-button, #sidebar-new-project-button, #empty-new-project-button, #overview-new-project-button")
   .forEach(button => button.addEventListener("click", openProjectDialog));
 document.querySelector("#new-key-button").addEventListener("click", openKeyDialog);
 document.querySelectorAll("[data-close-dialog]").forEach(button => {
@@ -540,6 +672,10 @@ elements.projectList.addEventListener("click", event => {
   const button = event.target.closest("[data-project-id]");
   if (button) selectProject(button.dataset.projectId);
 });
+elements.projectFlowList.addEventListener("click", event => {
+  const button = event.target.closest("[data-project-flow-id]");
+  if (button) selectProject(button.dataset.projectFlowId);
+});
 elements.pipelineBoard.addEventListener("click", event => {
   const button = event.target.closest("[data-cancel-job]");
   if (button) cancelJob(button.dataset.cancelJob);
@@ -547,6 +683,10 @@ elements.pipelineBoard.addEventListener("click", event => {
 elements.keyList.addEventListener("click", event => {
   const button = event.target.closest("[data-revoke-key]");
   if (button) revokeKey(button.dataset.revokeKey);
+});
+window.addEventListener("resize", applySidebarState);
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") closeSidebarOnMobile();
 });
 
 setAuthMode("login");
