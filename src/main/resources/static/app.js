@@ -317,7 +317,7 @@ async function createProject(event) {
 }
 
 function isMobileNavigation() {
-  return window.matchMedia("(max-width: 720px)").matches;
+  return window.matchMedia("(max-width: 860px)").matches;
 }
 
 function applySidebarState() {
